@@ -1,12 +1,14 @@
-use std::sync::{Arc, LazyLock};
+use std::{
+    fmt::{self, Display},
+    sync::{Arc, LazyLock},
+};
+
 use crate::ui::{WINDOW_HEIGHT, WINDOW_WIDTH};
 
 mod ui;
 
 #[derive(Default)]
-pub struct State {
-
-}
+struct State {}
 
 impl eframe::App for State {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
@@ -44,6 +46,5 @@ fn main() {
             Ok(Box::new(state))
         }),
     )
-        .unwrap();
-
+    .unwrap();
 }
