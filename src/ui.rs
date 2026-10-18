@@ -11,7 +11,7 @@ use software_manager::{
 use crate::{AppRow, Operation, State, VERSION, repaint};
 
 pub const WINDOW_WIDTH: f32 = 600.;
-pub const WINDOW_HEIGHT: f32 = 360.;
+pub const WINDOW_HEIGHT: f32 = 380.;
 
 // Light and dark variants, so text stays readable on either theme's backgrounds.
 const COLOR_OK_LIGHT: Color32 = Color32::from_rgb(20, 120, 40);
@@ -58,13 +58,14 @@ pub fn draw(state: &mut State, ui: &mut Ui) {
         ui.add_space(20.);
 
         Grid::new("apps")
-            .num_columns(4)
+            .num_columns(5)
             .spacing([24., 14.])
             .striped(true)
             .show(ui, |ui| {
                 ui.label(RichText::new("Application").strong());
                 ui.label(RichText::new("Installed").strong());
                 ui.label(RichText::new("Latest").strong());
+                ui.label("");
                 ui.label("");
                 ui.end_row();
 
@@ -139,6 +140,7 @@ fn app_row(row: &mut AppRow, ctx: &Context, ui: &mut Ui) {
         ui.spinner();
         ui.label("");
         ui.label("");
+        ui.label("");
         return;
     };
 
@@ -159,9 +161,23 @@ fn app_row(row: &mut AppRow, ctx: &Context, ui: &mut Ui) {
 
     latest_cell(status.latest.as_ref().ok(), ui);
 
+    // In its own column, so the controls after it line up across rows, whether or not they have
+    // one. Not disabled while it's running: that opens another window, as launching it from the
+    // Start menu again would. Hidden while installing or uninstalling.
+    let launch = if row.app.launch_from_ui()
+        && status.installed.is_some()
+        && row.operation.is_none()
+    {
+        ui.button(RichText::new("Launch").color(color_ok(ui)))
+            .on_hover_text(format!("Start {}.", row.app))
+            .clicked()
+    } else {
+        ui.label("");
+        false
+    };
+
     let mut install = None;
     let mut uninstall = false;
-    let mut launch = false;
 
     ui.vertical(|ui| {
         ui.set_max_width(ACTIONS_WIDTH);
@@ -188,15 +204,6 @@ fn app_row(row: &mut AppRow, ctx: &Context, ui: &mut Ui) {
         let enabled = row.refresh.is_none() && !blocked;
 
         ui.horizontal(|ui| {
-            // Not disabled while it's running: that opens another window, as launching it from the
-            // Start menu again would.
-            if row.app.launch_from_ui() && status.installed.is_some() {
-                launch = ui
-                    .button(RichText::new("Launch").color(color_ok(ui)))
-                    .on_hover_text(format!("Start {}.", row.app))
-                    .clicked();
-            }
-
             ui.add_enabled_ui(enabled, |ui| {
                 match (&status.latest, &status.installed) {
                     (Ok(release), None) => {
@@ -316,6 +323,9 @@ fn self_row(updater: &mut Updater, ctx: &Context, ui: &mut Ui) {
         }
         None => latest_cell(None, ui),
     }
+
+    // No Launch button: it's already running.
+    ui.label("");
 
     let mut download = false;
     let mut restart = false;
