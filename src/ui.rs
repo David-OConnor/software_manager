@@ -8,8 +8,8 @@ use software_manager::{Application, Error, Progress, UpdateStatus, Updater};
 
 use crate::{AppRow, Operation, State, VERSION, repaint};
 
-pub const WINDOW_WIDTH: f32 = 800.;
-pub const WINDOW_HEIGHT: f32 = 600.;
+pub const WINDOW_WIDTH: f32 = 600.;
+pub const WINDOW_HEIGHT: f32 = 400.;
 
 const COLOR_OK: Color32 = Color32::from_rgb(120, 200, 120);
 const COLOR_WARNING: Color32 = Color32::ORANGE;
@@ -69,15 +69,6 @@ pub fn draw(state: &mut State, ui: &mut Ui) {
             });
 
         ui.add_space(20.);
-
-        ui.label(
-            RichText::new(
-                "Applications are installed for the current user, without administrator rights. \
-                Uninstalling keeps their preferences and data.",
-            )
-            .weak()
-            .small(),
-        );
     });
 }
 
