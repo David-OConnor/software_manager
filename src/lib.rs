@@ -159,18 +159,14 @@ impl Application {
     /// `%LOCALAPPDATA%\Programs\<Name>` on Windows, and `~/<name>` on Linux. Shell, which has no
     /// setup script, goes in `~/.local/bin` on Linux, which is normally on the `PATH`.
     pub fn install_dir(self) -> Option<PathBuf> {
+        let parent = install_parent()?;
+
         match OS {
-            Os::Windows => {
-                let local = PathBuf::from(std::env::var_os("LOCALAPPDATA")?);
-                Some(local.join("Programs").join(self.to_string()))
-            }
-            Os::Linux => {
-                let home = PathBuf::from(std::env::var_os("HOME")?);
-                match self {
-                    Self::Shell => Some(home.join(".local").join("bin")),
-                    _ => Some(home.join(self.release_file_name())),
-                }
-            }
+            Os::Windows => Some(parent.join(self.to_string())),
+            Os::Linux => match self {
+                Self::Shell => Some(parent.join(".local").join("bin")),
+                _ => Some(parent.join(self.release_file_name())),
+            },
             Os::Mac => None,
         }
     }
@@ -203,6 +199,20 @@ impl Application {
                 }
             }
         }
+    }
+}
+
+/// The folder the applications are installed in, each in a folder of its own:
+/// `%LOCALAPPDATA%\Programs` on Windows, and the home folder on Linux. See
+/// [`Application::install_dir`].
+pub fn install_parent() -> Option<PathBuf> {
+    match OS {
+        Os::Windows => {
+            let local = PathBuf::from(std::env::var_os("LOCALAPPDATA")?);
+            Some(local.join("Programs"))
+        }
+        Os::Linux => Some(PathBuf::from(std::env::var_os("HOME")?)),
+        Os::Mac => None,
     }
 }
 

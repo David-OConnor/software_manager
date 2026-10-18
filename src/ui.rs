@@ -1,17 +1,26 @@
-use std::time::Duration;
+use std::{env, path::PathBuf, time::Duration};
 
 use egui::{
     Align, Button, CentralPanel, Color32, Context, Grid, Label, Layout, ProgressBar, RichText, Ui,
     ViewportCommand,
 };
-use software_manager::{Application, Error, Progress, UpdateStatus, Updater};
+use software_manager::{
+    Application, Error, OS, Os, Progress, UpdateStatus, Updater, install_parent,
+};
 
 use crate::{AppRow, Operation, State, VERSION, repaint};
 
 pub const WINDOW_WIDTH: f32 = 600.;
-pub const WINDOW_HEIGHT: f32 = 400.;
+pub const WINDOW_HEIGHT: f32 = 360.;
 
-const COLOR_OK: Color32 = Color32::from_rgb(120, 200, 120);
+// Light and dark variants, so text stays readable on either theme's backgrounds.
+const COLOR_OK_LIGHT: Color32 = Color32::from_rgb(20, 120, 40);
+const COLOR_OK_DARK: Color32 = Color32::from_rgb(110, 200, 120);
+
+// Darker than egui's `weak()`, which is hard to read.
+const COLOR_MUTED_LIGHT: Color32 = Color32::from_gray(80);
+const COLOR_MUTED_DARK: Color32 = Color32::from_gray(175);
+
 const COLOR_WARNING: Color32 = Color32::ORANGE;
 
 /// Keeps notes and errors from widening the last column past the window.
@@ -69,7 +78,39 @@ pub fn draw(state: &mut State, ui: &mut Ui) {
             });
 
         ui.add_space(20.);
+
+        locations(ui);
     });
+}
+
+/// Where the applications are installed, and where they keep their data. See the README.
+fn locations(ui: &mut Ui) {
+    let Some(parent) = install_parent() else {
+        return;
+    };
+
+    let mut installed = format!("These install to {}", parent.display());
+
+    // Shell is a single executable, so on Linux it goes with the others on the `PATH`.
+    if OS == Os::Linux
+        && let Some(dir) = Application::Shell.install_dir()
+    {
+        installed += &format!("; Shell in {}", dir.display());
+    }
+
+    ui.label(installed);
+
+    ui.add_space(20.);
+
+    // Shell and Peregrine share a state file in the home folder; see `shell::save_data`.
+    let mut data = "Molchanica and PlasCAD keep their data in their install folders".to_owned();
+
+    if let Some(home) = env::var_os("USERPROFILE").or_else(|| env::var_os("HOME")) {
+        let state_file = PathBuf::from(home).join("shell_state.ss");
+        data += &format!("; Shell and Peregrine in {}", state_file.display());
+    }
+
+    ui.add(Label::new(RichText::new(data).color(color_muted(ui))).wrap());
 }
 
 fn name_cell(app: Application, ui: &mut Ui) {
@@ -85,7 +126,7 @@ fn latest_cell(release: Option<&software_manager::Release>, ui: &mut Ui) {
                 .on_hover_text("Open the release notes in a web browser.");
         }
         None => {
-            ui.label(RichText::new("—").weak());
+            ui.label(RichText::new("—").color(color_muted(ui)));
         }
     }
 }
@@ -105,14 +146,14 @@ fn app_row(row: &mut AppRow, ctx: &Context, ui: &mut Ui) {
         Some(installation) => {
             let text = match installation.version {
                 Some(version) => RichText::new(version.to_string()),
-                None => RichText::new("Unknown version").weak(),
+                None => RichText::new("Unknown version").color(color_muted(ui)),
             };
 
             ui.label(text)
                 .on_hover_text(installation.exe.display().to_string());
         }
         None => {
-            ui.label(RichText::new("Not installed").weak());
+            ui.label(RichText::new("Not installed").color(color_muted(ui)));
         }
     }
 
@@ -151,7 +192,7 @@ fn app_row(row: &mut AppRow, ctx: &Context, ui: &mut Ui) {
             // Start menu again would.
             if row.app.launch_from_ui() && status.installed.is_some() {
                 launch = ui
-                    .button(RichText::new("Launch").color(COLOR_OK))
+                    .button(RichText::new("Launch").color(color_ok(ui)))
                     .on_hover_text(format!("Start {}.", row.app))
                     .clicked();
             }
@@ -169,7 +210,7 @@ fn app_row(row: &mut AppRow, ctx: &Context, ui: &mut Ui) {
                     }
                     (Ok(release), Some(installation)) => match installation.version {
                         Some(version) if version >= release.version => {
-                            ui.label(RichText::new("✔ Up to date").color(COLOR_OK));
+                            ui.label(RichText::new("✔ Up to date").color(color_ok(ui)));
                         }
                         Some(_) => {
                             let button = ui
@@ -234,7 +275,7 @@ fn app_row(row: &mut AppRow, ctx: &Context, ui: &mut Ui) {
 
         match &row.outcome {
             Some(Ok(note)) => {
-                ui.add(Label::new(RichText::new(note).color(COLOR_OK).small()).wrap());
+                ui.add(Label::new(RichText::new(note).color(color_ok(ui)).small()).wrap());
             }
             Some(Err(e)) => error_label(e, ui),
             None => (),
@@ -288,7 +329,7 @@ fn self_row(updater: &mut Updater, ctx: &Context, ui: &mut Ui) {
                 ui.spinner();
             }
             UpdateStatus::UpToDate => {
-                ui.label(RichText::new("✔ Up to date").color(COLOR_OK));
+                ui.label(RichText::new("✔ Up to date").color(color_ok(ui)));
             }
             UpdateStatus::Available(release) => {
                 download = ui
@@ -314,6 +355,22 @@ fn self_row(updater: &mut Updater, ctx: &Context, ui: &mut Ui) {
 
     if restart && updater.install_on_exit() {
         ctx.send_viewport_cmd(ViewportCommand::Close);
+    }
+}
+
+fn color_ok(ui: &Ui) -> Color32 {
+    if ui.visuals().dark_mode {
+        COLOR_OK_DARK
+    } else {
+        COLOR_OK_LIGHT
+    }
+}
+
+fn color_muted(ui: &Ui) -> Color32 {
+    if ui.visuals().dark_mode {
+        COLOR_MUTED_DARK
+    } else {
+        COLOR_MUTED_LIGHT
     }
 }
 
@@ -345,7 +402,7 @@ fn download_progress(progress: &Progress, ui: &mut Ui) {
 fn error_label(e: &Error, ui: &mut Ui) {
     let text = match e {
         Error::NoRelease | Error::NoAsset { .. } | Error::UnsupportedOs => {
-            ui.label(RichText::new(e.to_string()).weak());
+            ui.label(RichText::new(e.to_string()).color(color_muted(ui)));
             return;
         }
         Error::Setup(_) => {
