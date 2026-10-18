@@ -318,8 +318,12 @@ fn self_row(updater: &mut Updater, ctx: &Context, ui: &mut Ui) {
 
     match latest {
         Some(release) => latest_cell(Some(release), ui),
+        // The check doesn't return the release when it's not newer; GitHub redirects this to it.
         None if matches!(updater.status(), UpdateStatus::UpToDate) => {
-            ui.label(VERSION);
+            let url = format!("{}/releases/latest", Application::SoftwareManager.repo_url());
+
+            ui.hyperlink_to(VERSION, url)
+                .on_hover_text("Open the release notes in a web browser.");
         }
         None => latest_cell(None, ui),
     }
