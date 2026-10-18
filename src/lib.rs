@@ -25,7 +25,7 @@ use serde::Deserialize;
 
 pub use crate::{
     detect::{Installation, installed, is_running},
-    install::{Progress, StagedUpdate, install, stage_update, uninstall},
+    install::{Progress, StagedUpdate, install, launch, stage_update, uninstall},
     updater::{Task, UpdateStatus, Updater},
 };
 
@@ -140,6 +140,12 @@ impl Application {
             Os::Windows => format!("{}.exe", self.release_file_name()),
             _ => self.release_file_name().to_owned(),
         }
+    }
+
+    /// Whether the Software Manager offers to launch it. Shell is left out, since it runs inside a
+    /// terminal rather than opening its own window; and the Software Manager is already running.
+    pub fn launch_from_ui(self) -> bool {
+        matches!(self, Self::Molchanica | Self::PlasCad | Self::Peregrine)
     }
 
     fn packaging(self) -> Packaging {

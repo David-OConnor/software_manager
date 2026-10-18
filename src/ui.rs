@@ -129,6 +129,7 @@ fn app_row(row: &mut AppRow, ctx: &Context, ui: &mut Ui) {
 
     let mut install = None;
     let mut uninstall = false;
+    let mut launch = false;
 
     ui.vertical(|ui| {
         ui.set_max_width(ACTIONS_WIDTH);
@@ -155,6 +156,15 @@ fn app_row(row: &mut AppRow, ctx: &Context, ui: &mut Ui) {
         let enabled = row.refresh.is_none() && !blocked;
 
         ui.horizontal(|ui| {
+            // Not disabled while it's running: that opens another window, as launching it from the
+            // Start menu again would.
+            if row.app.launch_from_ui() && status.installed.is_some() {
+                launch = ui
+                    .button(RichText::new("Launch").color(COLOR_OK))
+                    .on_hover_text(format!("Start {}.", row.app))
+                    .clicked();
+            }
+
             ui.add_enabled_ui(enabled, |ui| {
                 match (&status.latest, &status.installed) {
                     (Ok(release), None) => {
@@ -245,6 +255,10 @@ fn app_row(row: &mut AppRow, ctx: &Context, ui: &mut Ui) {
     }
     if uninstall {
         row.uninstall(ctx);
+    }
+    if launch {
+        // Quick, so not a background task. Success shows as the application's window opening.
+        row.outcome = software_manager::launch(row.app).err().map(Err);
     }
 }
 

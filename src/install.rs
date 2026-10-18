@@ -1,4 +1,4 @@
-//! Downloading releases, and installing and uninstalling them.
+//! Downloading releases, installing and uninstalling them, and launching what's installed.
 //!
 //! Zip releases are installed by their own setup script, as a user would after extracting one, so
 //! the install is the same either way. A running application's files can't be replaced, so to
@@ -341,6 +341,83 @@ pub fn uninstall(app: Application) -> Result<Option<PathBuf>, Error> {
     let _ = fs::remove_dir(&dir);
 
     Ok(dir.exists().then_some(dir))
+}
+
+/// Start the installed copy of an application, as its Start menu entry or desktop file would: in
+/// its install folder, which some applications, e.g. PlasCAD, keep their preferences relative to.
+pub fn launch(app: Application) -> Result<(), Error> {
+    let exe = app.exe_path().ok_or(Error::UnsupportedOs)?;
+
+    if !exe.is_file() {
+        return Err(Error::Io(io::Error::new(
+            io::ErrorKind::NotFound,
+            format!("{app} isn't installed."),
+        )));
+    }
+
+    start_detached(&exe, exe.parent().unwrap())?;
+    Ok(())
+}
+
+/// Start a program through the shell, as a double-click does, rather than as our child. This way, a
+/// console program, e.g. Molchanica, gets its own console window, rather than ours, or none.
+#[cfg(windows)]
+fn start_detached(exe: &Path, dir: &Path) -> io::Result<()> {
+    use std::{ffi::OsStr, os::windows::ffi::OsStrExt, ptr};
+
+    use windows_sys::Win32::UI::{Shell::ShellExecuteW, WindowsAndMessaging::SW_SHOWNORMAL};
+
+    let wide = |s: &OsStr| -> Vec<u16> { s.encode_wide().chain([0]).collect() };
+
+    let operation = wide(OsStr::new("open"));
+    let exe = wide(exe.as_os_str());
+    let dir = wide(dir.as_os_str());
+
+    // SAFETY: The strings are null-terminated, and outlive the call.
+    let result = unsafe {
+        ShellExecuteW(
+            ptr::null_mut(),
+            operation.as_ptr(),
+            exe.as_ptr(),
+            ptr::null(),
+            dir.as_ptr(),
+            SW_SHOWNORMAL,
+        )
+    };
+
+    // Values above 32 mean success.
+    if result as usize > 32 {
+        Ok(())
+    } else {
+        Err(io::Error::last_os_error())
+    }
+}
+
+#[cfg(unix)]
+fn start_detached(exe: &Path, dir: &Path) -> io::Result<()> {
+    use std::os::unix::process::CommandExt;
+
+    let mut child = Command::new(exe)
+        .current_dir(dir)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        // Its own process group, so a Ctrl+C in the terminal we were started from doesn't stop it.
+        .process_group(0)
+        .spawn()?;
+
+    // Collect its exit status when it closes, so it doesn't linger as a zombie process while we
+    // keep running.
+    std::thread::spawn(move || {
+        let _ = child.wait();
+    });
+
+    Ok(())
+}
+
+#[cfg(not(any(windows, unix)))]
+fn start_detached(_exe: &Path, _dir: &Path) -> io::Result<()> {
+    Err(io::ErrorKind::Unsupported.into())
 }
 
 /// A release of the running application, downloaded and extracted, ready to install once the

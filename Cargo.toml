@@ -37,8 +37,13 @@ egui = { version = "0.36.2", optional = true }
 eframe = { version = "0.36.2", optional = true }
 
 [target.'cfg(windows)'.dependencies]
-# Reading the version embedded in an installed executable; see `detect.rs`.
-windows-sys = { version = "0.61", features = ["Win32_Storage_FileSystem"] }
+# Reading the version embedded in an installed executable (see `detect.rs`), and launching
+# applications through the shell (see `install::launch`).
+windows-sys = { version = "0.61", features = [
+    "Win32_Storage_FileSystem",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+] }
 
 [build-dependencies]
 # Embeds `resources/icon.ico` in the Windows `.exe` (see `build.rs`).
