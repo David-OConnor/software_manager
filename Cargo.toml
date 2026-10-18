@@ -2,10 +2,48 @@
 name = "software_manager"
 version = "0.1.0"
 edition = "2024"
+description = "Installs, updates, and shows the status of applications; and a library they use to update themselves."
+repository = "https://github.com/David-OConnor/software_manager"
+readme = "README.md"
 
+[lib]
+name = "software_manager"
+path = "src/lib.rs"
+
+[[bin]]
+name = "software_manager"
+path = "src/main.rs"
+# The GUI. Applications that use this crate to update themselves depend on it with
+# `default-features = false`, so they don't build it; see `[features]`.
+required-features = ["gui"]
+
+[features]
+default = ["gui"]
+# The Software Manager application itself. Off for applications that only use the library: besides
+# the GUI dependencies, it embeds this program's icon and version in the Windows executable (see
+# `build.rs`), which would conflict with the application's own.
+gui = ["dep:eframe", "dep:egui", "dep:winresource"]
 
 [dependencies]
-egui = "0.36.2"
-eframe = "0.36.2"
+# Querying GitHub for the latest release, and downloading it.
+ureq = { version = "3.4.2", features = ["json"] }
+serde = { version = "1.0.229", features = ["derive"] }
 
-ureq = "3.4.2"
+# Extracting release archives. Only Deflate is needed: it's what both `Compress-Archive` and `zip`
+# use, in the `make_release` scripts.
+zip = { version = "8.6.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+
+egui = { version = "0.36.2", optional = true }
+eframe = { version = "0.36.2", optional = true }
+
+[target.'cfg(windows)'.dependencies]
+# Reading the version embedded in an installed executable; see `detect.rs`.
+windows-sys = { version = "0.61", features = ["Win32_Storage_FileSystem"] }
+
+[build-dependencies]
+# Embeds `resources/icon.ico` in the Windows `.exe` (see `build.rs`).
+winresource = { version = "0.1.31", optional = true }
+
+[profile.release]
+strip = true  # Strip symbols from binary. Size reduction on Linux/Mac.
+lto = true
