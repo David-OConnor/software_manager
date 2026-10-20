@@ -1,11 +1,12 @@
 use std::{env, path::PathBuf, time::Duration};
 
+use chrono::{DateTime, Local};
 use egui::{
     Align, Button, CentralPanel, Color32, Context, Grid, Label, Layout, ProgressBar, RichText, Ui,
-    ViewportCommand,
+    ViewportCommand, vec2,
 };
 use software_manager::{
-    Application, Error, OS, Os, Progress, UpdateStatus, Updater, install_parent,
+    Application, Error, OS, Os, Progress, ProjectBuild, UpdateStatus, install_parent,
 };
 
 use crate::{AppRow, Operation, State, VERSION, repaint};
@@ -57,8 +58,12 @@ pub fn draw(state: &mut State, ui: &mut Ui) {
 
         ui.add_space(20.);
 
-        Grid::new("apps")
-            .num_columns(5)
+        // Only on a development machine, with a build in at least one application's project
+        // folder.
+        let show_copy = state.any_project_builds();
+
+        let grid = Grid::new("apps")
+            .num_columns(if show_copy { 6 } else { 5 })
             .spacing([24., 14.])
             .striped(true)
             .show(ui, |ui| {
@@ -67,16 +72,32 @@ pub fn draw(state: &mut State, ui: &mut Ui) {
                 ui.label(RichText::new("Latest").strong());
                 ui.label("");
                 ui.label("");
+                if show_copy {
+                    ui.label(RichText::new("Copy from project").strong());
+                }
                 ui.end_row();
 
                 for row in &mut state.apps {
-                    app_row(row, &ctx, ui);
+                    app_row(row, show_copy, &ctx, ui);
                     ui.end_row();
                 }
 
-                self_row(&mut state.self_update, &ctx, ui);
+                self_row(state, show_copy, &ctx, ui);
                 ui.end_row();
             });
+
+        // The copy column appears once the first check finds a build, after the window opens, and
+        // can make the grid wider than it. Widen the window to fit, with the same margin on the
+        // right as on the left. Only when the grid has grown, so the user can still narrow it.
+        if show_copy {
+            let needed = grid.response.rect.right() + grid.response.rect.left();
+            let window = ctx.viewport_rect();
+
+            if needed > window.width() && needed > state.fitted_width {
+                state.fitted_width = needed;
+                ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(needed, window.height())));
+            }
+        }
 
         ui.add_space(20.);
 
@@ -132,7 +153,7 @@ fn latest_cell(release: Option<&software_manager::Release>, ui: &mut Ui) {
     }
 }
 
-fn app_row(row: &mut AppRow, ctx: &Context, ui: &mut Ui) {
+fn app_row(row: &mut AppRow, show_copy: bool, ctx: &Context, ui: &mut Ui) {
     name_cell(row.app, ui);
 
     let Some(status) = &row.status else {
@@ -179,6 +200,10 @@ fn app_row(row: &mut AppRow, ctx: &Context, ui: &mut Ui) {
     let mut install = None;
     let mut uninstall = false;
 
+    // Shell can be updated while it's running; see `install::replace_exe`. The others' setup
+    // scripts refuse to.
+    let blocked = status.running && row.app != Application::Shell;
+
     ui.vertical(|ui| {
         ui.set_max_width(ACTIONS_WIDTH);
 
@@ -195,12 +220,13 @@ fn app_row(row: &mut AppRow, ctx: &Context, ui: &mut Ui) {
                 busy_label("Uninstalling…", ui);
                 return;
             }
+            Some(Operation::CopyFromProject { .. }) => {
+                busy_label("Copying…", ui);
+                return;
+            }
             None => (),
         }
 
-        // Shell can be updated while it's running; see `install::replace_exe`. The others'
-        // setup scripts refuse to.
-        let blocked = status.running && row.app != Application::Shell;
         let enabled = row.refresh.is_none() && !blocked;
 
         ui.horizontal(|ui| {
@@ -289,11 +315,23 @@ fn app_row(row: &mut AppRow, ctx: &Context, ui: &mut Ui) {
         }
     });
 
+    let build = status.project_build.as_ref();
+
+    // The build to copy, if its button was clicked.
+    let copy = if show_copy && copy_cell(build, !row.busy() && !blocked, ui) {
+        build.cloned()
+    } else {
+        None
+    };
+
     if let Some(release) = install {
         row.install(release, ctx);
     }
     if uninstall {
         row.uninstall(ctx);
+    }
+    if let Some(build) = copy {
+        row.copy_from_project(build, ctx);
     }
     if launch {
         // Quick, so not a background task. Success shows as the application's window opening.
@@ -303,7 +341,9 @@ fn app_row(row: &mut AppRow, ctx: &Context, ui: &mut Ui) {
 
 /// This program. It can't replace itself while running, so it downloads the update, then installs
 /// it after closing, and reopens.
-fn self_row(updater: &mut Updater, ctx: &Context, ui: &mut Ui) {
+fn self_row(state: &mut State, show_copy: bool, ctx: &Context, ui: &mut Ui) {
+    let updater = &mut state.self_update;
+
     name_cell(Application::SoftwareManager, ui);
 
     ui.label(VERSION).on_hover_text("This program.");
@@ -361,7 +401,22 @@ fn self_row(updater: &mut Updater, ctx: &Context, ui: &mut Ui) {
             UpdateStatus::Installing => busy_label("Installing…", ui),
             UpdateStatus::Failed(e) => error_label(e, ui),
         }
+
+        if state.self_copy.is_some() {
+            busy_label("Copying…", ui);
+        }
+
+        match &state.self_copy_outcome {
+            Some(Ok(note)) => {
+                ui.add(Label::new(RichText::new(note).color(color_ok(ui)).small()).wrap());
+            }
+            Some(Err(e)) => error_label(e, ui),
+            None => (),
+        }
     });
+
+    let copy = show_copy
+        && copy_cell(state.self_build.as_ref(), state.self_copy.is_none(), ui);
 
     if download {
         updater.download(repaint(ctx));
@@ -370,6 +425,39 @@ fn self_row(updater: &mut Updater, ctx: &Context, ui: &mut Ui) {
     if restart && updater.install_on_exit() {
         ctx.send_viewport_cmd(ViewportCommand::Close);
     }
+
+    if copy {
+        state.self_copy_from_project(ctx);
+    }
+}
+
+/// A button to copy the release build in the application's project folder over the installed
+/// executable, if there is one. Returns whether it was clicked.
+fn copy_cell(build: Option<&ProjectBuild>, enabled: bool, ui: &mut Ui) -> bool {
+    let Some(build) = build else {
+        ui.label("");
+        return false;
+    };
+
+    // When it was built, in local time.
+    let text = match build.modified {
+        Some(modified) => {
+            let built: DateTime<Local> = modified.into();
+            format!("Copy {}", built.format("%Y-%m-%d %H:%M"))
+        }
+        None => "Copy".to_owned(),
+    };
+
+    let mut hover = format!("Copy {}", build.exe.display());
+
+    if let Some(version) = build.version {
+        hover += &format!(", version {version},");
+    }
+    hover += " to the install folder. Only the executable is copied.";
+
+    ui.add_enabled(enabled, Button::new(text))
+        .on_hover_text(hover)
+        .clicked()
 }
 
 fn color_ok(ui: &Ui) -> Color32 {

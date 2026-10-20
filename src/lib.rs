@@ -9,9 +9,13 @@
 //! `setup_<name>.sh` on Linux. Installing runs that script, as a user would after extracting the
 //! zip, so the result is the same either way. Shell is the exception: its releases are the bare
 //! executable.
+//!
+//! On a development machine, the Software Manager can also copy an application's latest release
+//! build from its project folder over the installed executable; see [`project_build`].
 
 mod detect;
 mod install;
+mod project;
 mod updater;
 
 use std::{
@@ -26,6 +30,7 @@ use serde::Deserialize;
 pub use crate::{
     detect::{Installation, installed, is_running},
     install::{Progress, StagedUpdate, install, launch, stage_update, uninstall},
+    project::{ProjectBuild, install_from_project, project_build},
     updater::{Task, UpdateStatus, Updater},
 };
 
@@ -174,6 +179,25 @@ impl Application {
     /// Where the installed executable is, or would be.
     pub fn exe_path(self) -> Option<PathBuf> {
         Some(self.install_dir()?.join(self.exe_name()))
+    }
+
+    /// The application's project folder on a development machine, relative to `~/code`. Its
+    /// release build, `target/release/<exe>`, can be copied over the installed executable; see
+    /// [`project_build`].
+    fn project_path(self) -> &'static str {
+        match self {
+            Self::Molchanica => "Bio/molchanica",
+            Self::PlasCad => "Bio/plascad",
+            Self::Peregrine => "peregrine",
+            Self::Shell => "shell",
+            Self::SoftwareManager => "software_manager",
+        }
+    }
+
+    /// The project folder; see [`Self::project_path`].
+    pub fn project_dir(self) -> Option<PathBuf> {
+        let home = std::env::var_os("USERPROFILE").or_else(|| std::env::var_os("HOME"))?;
+        Some(PathBuf::from(home).join("code").join(self.project_path()))
     }
 
     /// The version in a release's file name, if it's this application's release for `os`.

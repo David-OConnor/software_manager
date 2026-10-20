@@ -11,8 +11,8 @@ use std::{
 
 use egui::Context;
 use software_manager::{
-    Application, Error, Installation, Progress, Release, Task, Updater, install, installed,
-    is_running, latest_release, uninstall,
+    Application, Error, Installation, Progress, ProjectBuild, Release, Task, Updater, install,
+    install_from_project, installed, is_running, latest_release, project_build, uninstall,
 };
 
 use crate::ui::{WINDOW_HEIGHT, WINDOW_WIDTH};
@@ -22,11 +22,13 @@ mod ui;
 /// This program's version, taken from Cargo.toml's `[package] version`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// What's installed, whether it's running, and the latest release.
+/// What's installed, whether it's running, the latest release, and the latest build in its
+/// project folder.
 struct AppStatus {
     installed: Option<Installation>,
     running: bool,
     latest: Result<Release, Error>,
+    project_build: Option<ProjectBuild>,
 }
 
 /// An install, update, or uninstall underway.
@@ -37,6 +39,10 @@ enum Operation {
         task: Task<()>,
     },
     Uninstall(Task<Option<PathBuf>>),
+    CopyFromProject {
+        build: ProjectBuild,
+        task: Task<()>,
+    },
 }
 
 /// One application's row in the list.
@@ -76,10 +82,21 @@ impl AppRow {
                 installed: installed(app),
                 running: is_running(app),
                 latest: latest_release(app),
+                project_build: project_build(app),
             })
         };
 
         self.refresh = Some(Task::spawn(work, repaint(ctx)));
+    }
+
+    fn copy_from_project(&mut self, build: ProjectBuild, ctx: &Context) {
+        let task = {
+            let build = build.clone();
+            Task::spawn(move || install_from_project(&build), repaint(ctx))
+        };
+
+        self.outcome = None;
+        self.operation = Some(Operation::CopyFromProject { build, task });
     }
 
     fn install(&mut self, release: Release, ctx: &Context) {
@@ -136,6 +153,9 @@ impl AppRow {
                     None => "Uninstalled.".to_owned(),
                 })
             }),
+            Some(Operation::CopyFromProject { build, task }) => task
+                .poll()
+                .map(|result| result.map(|()| copied_note(build))),
             None => None,
         };
 
@@ -155,6 +175,14 @@ pub struct State {
     /// This one, which can't replace its own files while running, so updates the way the other
     /// applications do from their About popups: the update installs once it closes.
     self_update: Updater,
+    /// This one's release build in its project folder.
+    self_build: Option<ProjectBuild>,
+    /// Copying `self_build` over the installed copy. Unlike a release, that can be done while
+    /// running; it's used from the next start.
+    self_copy: Option<Task<()>>,
+    self_copy_outcome: Option<Result<String, Error>>,
+    /// The window width last set to fit the grid; see `ui::draw`.
+    fitted_width: f32,
 }
 
 impl State {
@@ -168,11 +196,39 @@ impl State {
         Self {
             apps,
             self_update: Updater::default(),
+            self_build: None,
+            self_copy: None,
+            self_copy_outcome: None,
+            fitted_width: 0.,
         }
     }
 
     fn busy(&self) -> bool {
-        self.apps.iter().any(AppRow::busy) || self.self_update.busy()
+        self.apps.iter().any(AppRow::busy) || self.self_update.busy() || self.self_copy.is_some()
+    }
+
+    /// Whether any application has a build in its project folder to copy. If none do, the column
+    /// for it is left out.
+    fn any_project_builds(&self) -> bool {
+        let app_builds = self.apps.iter().any(|row| {
+            row.status
+                .as_ref()
+                .is_some_and(|status| status.project_build.is_some())
+        });
+
+        app_builds || self.self_build.is_some()
+    }
+
+    fn self_copy_from_project(&mut self, ctx: &Context) {
+        let Some(build) = self.self_build.clone() else {
+            return;
+        };
+
+        self.self_copy_outcome = None;
+        self.self_copy = Some(Task::spawn(
+            move || install_from_project(&build),
+            repaint(ctx),
+        ));
     }
 
     /// Check what's installed, and for new releases. GitHub allows 60 of these checks an hour,
@@ -188,6 +244,11 @@ impl State {
             self.self_update
                 .check(Application::SoftwareManager, VERSION, repaint(ctx));
         }
+
+        // Only a file check, so not a background task.
+        if self.self_copy.is_none() {
+            self.self_build = project_build(Application::SoftwareManager);
+        }
     }
 
     fn poll(&mut self, ctx: &Context) {
@@ -195,6 +256,28 @@ impl State {
             row.poll(ctx);
         }
         self.self_update.poll();
+
+        if let Some(task) = &mut self.self_copy
+            && let Some(result) = task.poll()
+        {
+            self.self_copy = None;
+
+            self.self_copy_outcome = Some(result.map(|()| match &self.self_build {
+                Some(build) => format!(
+                    "{} Restart Software Manager to use it.",
+                    copied_note(build)
+                ),
+                None => "Copied.".to_owned(),
+            }));
+        }
+    }
+}
+
+/// What copying a build from its project folder did.
+fn copied_note(build: &ProjectBuild) -> String {
+    match build.version {
+        Some(version) => format!("Copied {version} from the project folder."),
+        None => "Copied from the project folder.".to_owned(),
     }
 }
 

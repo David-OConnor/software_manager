@@ -236,7 +236,7 @@ pub fn install(release: &Release, progress: &Progress) -> Result<(), Error> {
 /// can be renamed, so the old one is moved aside first, and removed if it isn't running. (On
 /// Linux, the rename alone works: a running program keeps the old file open.) This lets Shell be
 /// updated from inside itself.
-fn replace_exe(new: &Path, exe: &Path) -> io::Result<()> {
+pub(crate) fn replace_exe(new: &Path, exe: &Path) -> io::Result<()> {
     let old = exe.with_extension("old");
 
     if cfg!(windows) && exe.exists() {

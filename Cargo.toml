@@ -22,7 +22,7 @@ default = ["gui"]
 # The Software Manager application itself. Off for applications that only use the library: besides
 # the GUI dependencies, it embeds this program's icon and version in the Windows executable (see
 # `build.rs`), which would conflict with the application's own.
-gui = ["dep:eframe", "dep:egui", "dep:winresource"]
+gui = ["dep:eframe", "dep:egui", "dep:winresource", "dep:chrono"]
 
 [dependencies]
 # Querying GitHub for the latest release, and downloading it.
@@ -35,6 +35,9 @@ zip = { version = "9.0.5", default-features = false, features = ["deflate-flate2
 
 egui = { version = "0.36.2", optional = true }
 eframe = { version = "0.36.2", optional = true }
+
+# Showing when a project folder's build was made, in local time.
+chrono = { version = "0.4.45", default-features = false, features = ["clock"], optional = true }
 
 [target.'cfg(windows)'.dependencies]
 # Reading the version embedded in an installed executable (see `detect.rs`), and launching

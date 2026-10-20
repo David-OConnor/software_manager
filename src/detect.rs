@@ -88,7 +88,7 @@ fn exe_running(_exe: &Path) -> bool {
 
 /// The version embedded in a Windows executable's resources.
 #[cfg(windows)]
-fn embedded_version(exe: &Path) -> Option<Version> {
+pub(crate) fn embedded_version(exe: &Path) -> Option<Version> {
     use std::{ffi::c_void, os::windows::ffi::OsStrExt, ptr};
 
     use windows_sys::Win32::Storage::FileSystem::{
@@ -134,7 +134,7 @@ fn embedded_version(exe: &Path) -> Option<Version> {
 }
 
 #[cfg(not(windows))]
-fn embedded_version(_exe: &Path) -> Option<Version> {
+pub(crate) fn embedded_version(_exe: &Path) -> Option<Version> {
     None
 }
 
