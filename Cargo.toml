@@ -22,7 +22,7 @@ required-features = ["gui"]
 
 
 [features]
-default = ["gui"]
+default = []
 # The Software Manager application itself. Off for applications that only use the library: besides
 # the GUI dependencies, it embeds this program's icon and version in the Windows executable (see
 # `build.rs`), which would conflict with the application's own.
@@ -37,8 +37,8 @@ serde = { version = "1.0", features = ["derive"] }
 # use, in the `make_release` scripts.
 zip = { version = "9.5", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 
-egui = { version = "0.36.2", optional = true }
-eframe = { version = "0.36.2", optional = true }
+egui = { version = "0.37.0", optional = true }
+eframe = { version = "0.37.0", optional = true }
 
 # Showing when a project folder's build was made, in local time.
 chrono = { version = "0.4.45", default-features = false, features = ["clock"], optional = true }

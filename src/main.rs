@@ -9,7 +9,7 @@ use std::{
     sync::{Arc, LazyLock},
 };
 
-use egui::Context;
+use egui::{Context, CornerRadius};
 use software_manager::{
     Application, Error, Installation, Progress, ProjectBuild, Release, Task, Updater, install,
     install_from_project, installed, is_running, latest_release, project_build, uninstall,
@@ -297,6 +297,23 @@ fn app_icon() -> Arc<egui::IconData> {
     Arc::clone(&ICON)
 }
 
+/// Restores egui 0.36's widget sizing and rounding. egui 0.37 doubled the button padding,
+/// made interactive widgets taller, and rounded their corners more.
+fn use_compact_style(ctx: &egui::Context) {
+    ctx.all_styles_mut(|style| {
+        style.spacing.button_padding = egui::vec2(4., 1.);
+        style.spacing.interact_size.y = 18.;
+
+        let widgets = &mut style.visuals.widgets;
+
+        widgets.noninteractive.corner_radius = CornerRadius::same(2);
+        widgets.inactive.corner_radius = CornerRadius::same(2);
+        widgets.hovered.corner_radius = CornerRadius::same(3);
+        widgets.active.corner_radius = CornerRadius::same(2);
+        widgets.open.corner_radius = CornerRadius::same(2);
+    });
+}
+
 fn main() {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
@@ -309,6 +326,8 @@ fn main() {
         "Software Manager",
         options,
         Box::new(|cc| {
+            use_compact_style(&cc.egui_ctx);
+
             let mut state = State::new();
             state.refresh(&cc.egui_ctx);
 
