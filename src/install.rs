@@ -282,7 +282,8 @@ fn launcher_entries(app: Application) -> Vec<PathBuf> {
     match OS {
         Os::Windows => {
             if let Some(appdata) = env::var_os("APPDATA") {
-                let programs = PathBuf::from(appdata).join(r"Microsoft\Windows\Start Menu\Programs");
+                let programs =
+                    PathBuf::from(appdata).join(r"Microsoft\Windows\Start Menu\Programs");
                 result.push(programs.join(format!("{app}.lnk")));
             }
         }
@@ -467,7 +468,11 @@ impl StagedUpdate {
 
         // Nothing of ours runs after the setup script to record this, so it's recorded now. If
         // the setup fails, the record is ignored, since the installed executable won't match it.
-        record_version(app, &self.contents.join(app.exe_name()), self.release.version);
+        record_version(
+            app,
+            &self.contents.join(app.exe_name()),
+            self.release.version,
+        );
 
         spawn_installer(std::process::id(), &script, &log, &exe, &self.contents)?;
         Ok(())
@@ -573,6 +578,12 @@ fn spawn_installer(pid: u32, script: &Path, log: &Path, exe: &Path, dir: &Path) 
 }
 
 #[cfg(not(any(windows, unix)))]
-fn spawn_installer(_pid: u32, _script: &Path, _log: &Path, _exe: &Path, _dir: &Path) -> io::Result<()> {
+fn spawn_installer(
+    _pid: u32,
+    _script: &Path,
+    _log: &Path,
+    _exe: &Path,
+    _dir: &Path,
+) -> io::Result<()> {
     Err(io::ErrorKind::Unsupported.into())
 }

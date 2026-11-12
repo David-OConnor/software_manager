@@ -327,7 +327,9 @@ pub enum Error {
     /// The repository has no published release.
     NoRelease,
     /// The latest release has no file for this OS.
-    NoAsset { tag: String },
+    NoAsset {
+        tag: String,
+    },
     /// Reaching GitHub, or downloading from it, failed.
     Network(String),
     /// The release's setup script failed. Contains its output.
@@ -444,9 +446,8 @@ pub fn latest_release(app: Application) -> Result<Release, Error> {
 
 /// The latest release, if it's newer than `current_version`; e.g. `env!("CARGO_PKG_VERSION")`.
 pub fn check_for_update(app: Application, current_version: &str) -> Result<Option<Release>, Error> {
-    let current = Version::parse(current_version).ok_or_else(|| {
-        Error::Internal(format!("{current_version} isn't a valid version"))
-    })?;
+    let current = Version::parse(current_version)
+        .ok_or_else(|| Error::Internal(format!("{current_version} isn't a valid version")))?;
 
     let latest = latest_release(app)?;
     Ok((latest.version > current).then_some(latest))

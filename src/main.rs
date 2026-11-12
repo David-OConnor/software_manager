@@ -141,15 +141,12 @@ impl AppRow {
         }
 
         let outcome = match &mut self.operation {
-            Some(Operation::Install { release, task, .. }) => task.poll().map(|result| {
-                result.map(|()| format!("Installed {}.", release.version))
-            }),
+            Some(Operation::Install { release, task, .. }) => task
+                .poll()
+                .map(|result| result.map(|()| format!("Installed {}.", release.version))),
             Some(Operation::Uninstall(task)) => task.poll().map(|result| {
                 result.map(|kept| match kept {
-                    Some(dir) => format!(
-                        "Uninstalled. Its data was kept, in {}.",
-                        dir.display()
-                    ),
+                    Some(dir) => format!("Uninstalled. Its data was kept, in {}.", dir.display()),
                     None => "Uninstalled.".to_owned(),
                 })
             }),
@@ -263,10 +260,9 @@ impl State {
             self.self_copy = None;
 
             self.self_copy_outcome = Some(result.map(|()| match &self.self_build {
-                Some(build) => format!(
-                    "{} Restart Software Manager to use it.",
-                    copied_note(build)
-                ),
+                Some(build) => {
+                    format!("{} Restart Software Manager to use it.", copied_note(build))
+                }
                 None => "Copied.".to_owned(),
             }));
         }

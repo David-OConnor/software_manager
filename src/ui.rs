@@ -185,17 +185,15 @@ fn app_row(row: &mut AppRow, show_copy: bool, ctx: &Context, ui: &mut Ui) {
     // In its own column, so the controls after it line up across rows, whether or not they have
     // one. Not disabled while it's running: that opens another window, as launching it from the
     // Start menu again would. Hidden while installing or uninstalling.
-    let launch = if row.app.launch_from_ui()
-        && status.installed.is_some()
-        && row.operation.is_none()
-    {
-        ui.button(RichText::new("Launch").color(color_ok(ui)))
-            .on_hover_text(format!("Start {}.", row.app))
-            .clicked()
-    } else {
-        ui.label("");
-        false
-    };
+    let launch =
+        if row.app.launch_from_ui() && status.installed.is_some() && row.operation.is_none() {
+            ui.button(RichText::new("Launch").color(color_ok(ui)))
+                .on_hover_text(format!("Start {}.", row.app))
+                .clicked()
+        } else {
+            ui.label("");
+            false
+        };
 
     let mut install = None;
     let mut uninstall = false;
@@ -235,7 +233,10 @@ fn app_row(row: &mut AppRow, show_copy: bool, ctx: &Context, ui: &mut Ui) {
                     (Ok(release), None) => {
                         let button = ui
                             .button(format!("Install {}", release.version))
-                            .on_hover_text(format!("Download {}, and install it.", mb(release.size)));
+                            .on_hover_text(format!(
+                                "Download {}, and install it.",
+                                mb(release.size)
+                            ));
 
                         if button.clicked() {
                             install = Some(release.clone());
@@ -284,9 +285,12 @@ fn app_row(row: &mut AppRow, show_copy: bool, ctx: &Context, ui: &mut Ui) {
 
         if blocked {
             ui.label(
-                RichText::new(format!("{} is running. Close it to update or uninstall.", row.app))
-                    .color(COLOR_WARNING)
-                    .small(),
+                RichText::new(format!(
+                    "{} is running. Close it to update or uninstall.",
+                    row.app
+                ))
+                .color(COLOR_WARNING)
+                .small(),
             );
         }
 
@@ -360,7 +364,10 @@ fn self_row(state: &mut State, show_copy: bool, ctx: &Context, ui: &mut Ui) {
         Some(release) => latest_cell(Some(release), ui),
         // The check doesn't return the release when it's not newer; GitHub redirects this to it.
         None if matches!(updater.status(), UpdateStatus::UpToDate) => {
-            let url = format!("{}/releases/latest", Application::SoftwareManager.repo_url());
+            let url = format!(
+                "{}/releases/latest",
+                Application::SoftwareManager.repo_url()
+            );
 
             ui.hyperlink_to(VERSION, url)
                 .on_hover_text("Open the release notes in a web browser.");
@@ -415,8 +422,7 @@ fn self_row(state: &mut State, show_copy: bool, ctx: &Context, ui: &mut Ui) {
         }
     });
 
-    let copy = show_copy
-        && copy_cell(state.self_build.as_ref(), state.self_copy.is_none(), ui);
+    let copy = show_copy && copy_cell(state.self_build.as_ref(), state.self_copy.is_none(), ui);
 
     if download {
         updater.download(repaint(ctx));
@@ -520,9 +526,7 @@ fn error_label(e: &Error, ui: &mut Ui) {
         _ => e.to_string(),
     };
 
-    ui.add(
-        Label::new(RichText::new(text).color(COLOR_WARNING).small()).wrap(),
-    );
+    ui.add(Label::new(RichText::new(text).color(COLOR_WARNING).small()).wrap());
 }
 
 fn mb(bytes: u64) -> String {

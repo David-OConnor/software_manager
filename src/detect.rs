@@ -115,7 +115,12 @@ pub(crate) fn embedded_version(exe: &Path) -> Option<Version> {
         let mut info: *mut c_void = ptr::null_mut();
         let mut info_len = 0;
 
-        let found = VerQueryValueW(data.as_ptr().cast(), root.as_ptr(), &mut info, &mut info_len);
+        let found = VerQueryValueW(
+            data.as_ptr().cast(),
+            root.as_ptr(),
+            &mut info,
+            &mut info_len,
+        );
         if found == 0 || info.is_null() || (info_len as usize) < size_of::<VS_FIXEDFILEINFO>() {
             return None;
         }

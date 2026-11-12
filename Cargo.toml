@@ -26,12 +26,12 @@ gui = ["dep:eframe", "dep:egui", "dep:winresource", "dep:chrono"]
 
 [dependencies]
 # Querying GitHub for the latest release, and downloading it.
-ureq = { version = "3.4.2", features = ["json"] }
-serde = { version = "1.0.229", features = ["derive"] }
+ureq = { version = "3.5", features = ["json"] }
+serde = { version = "1.0", features = ["derive"] }
 
 # Extracting release archives. Only Deflate is needed: it's what both `Compress-Archive` and `zip`
 # use, in the `make_release` scripts.
-zip = { version = "9.0.5", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+zip = { version = "9.5", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 
 egui = { version = "0.36.2", optional = true }
 eframe = { version = "0.36.2", optional = true }
@@ -50,7 +50,7 @@ windows-sys = { version = "0.61", features = [
 
 [build-dependencies]
 # Embeds `resources/icon.ico` in the Windows `.exe` (see `build.rs`).
-winresource = { version = "0.1.34", optional = true }
+winresource = { version = "0.1", optional = true }
 
 [profile.release]
 strip = true  # Strip symbols from binary. Size reduction on Linux/Mac.
