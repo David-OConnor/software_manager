@@ -20,6 +20,7 @@ path = "src/main.rs"
 # `default-features = false`, so they don't build it; see `[features]`.
 required-features = ["gui"]
 
+
 [features]
 default = ["gui"]
 # The Software Manager application itself. Off for applications that only use the library: besides
